@@ -1,0 +1,10 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+/TaxiService/bin/Debug/netstandard2.0
+/TaxiService/obj
+/TaxiServiceTests/bin/Debug/netcoreapp2.1
+/TaxiServiceTests/obj
+/TaxiService.sln.DotSettings.user
