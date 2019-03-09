@@ -15,13 +15,25 @@ namespace TaxiServiceTests
         public void Setup()
         {
             _routeService = Substitute.For<ICarRouteService>();
-            _sut = new Taxi(4, _routeService);
+            _sut = new Taxi(4, 2, _routeService);
         }
 
         [Test]
         public void ThereMustBeAtLeastOnePassengerSeat()
         {
-            Assert.Throws<ArgumentException>(() => new Taxi(0, _routeService));
+            Assert.Throws<ArgumentException>(() => new Taxi(0, 2, _routeService));
+        }
+
+        [Test]
+        public void KilometerPriceCannotBeZero()
+        {
+            Assert.Throws<ArgumentException>(() => new Taxi(1, 0, _routeService));
+        }
+
+        [Test]
+        public void KilometerPriceCannotBeNegative()
+        {
+            Assert.Throws<ArgumentException>(() => new Taxi(1, -2.50m, _routeService));
         }
 
         [Test]
@@ -129,6 +141,62 @@ namespace TaxiServiceTests
 
             Assert.Throws<ArgumentException>(() => 
                 _sut.TakeNewPassengers(new List<IPotentialPassenger> { firstPotentialPassenger, secondPotentialPassenger }));
+        }
+
+        [Test]
+        public void ThereMustBeAtLeastOnePassengerBeforeKilometersAreCounted()
+        {
+            Assert.Throws<InvalidOperationException>(() => _sut.NewKilometerStarted());
+        }
+
+        [Test]
+        public void OnePassengerPaysTheWholeRide()
+        {
+            var potentialPassenger = Substitute.For<IPotentialPassenger>();
+            var passenger = Substitute.For<IPassenger>();
+            var destination = Substitute.For<ILocation>();
+            potentialPassenger.ToPassenger().Returns(passenger);
+            passenger.DropOffLocation.Returns(destination);
+
+            _sut.TakeNewPassengers(new List<IPotentialPassenger> { potentialPassenger });
+
+            _sut.NewKilometerStarted();
+            _sut.NewKilometerStarted();
+            _sut.NewKilometerStarted();
+            _sut.NewKilometerStarted();
+
+            _sut.DestinationReached(destination);
+            passenger.Received(4).AddCost(2);
+            passenger.Received(1).Pay();
+        }
+
+        [Test]
+        public void PassengersWithTheSamePickUpAndDropOffLocationsShareTheCostsEqually()
+        {
+            var firstPotentialPassenger = Substitute.For<IPotentialPassenger>();
+            var firstPassenger = Substitute.For<IPassenger>();
+            var secondPotentialPassenger = Substitute.For<IPotentialPassenger>();
+            var secondPassenger = Substitute.For<IPassenger>();
+            var pickUpLocation = Substitute.For<ILocation>();
+            var dropOffLocation = Substitute.For<ILocation>();
+            firstPotentialPassenger.ToPassenger().Returns(firstPassenger);
+            firstPotentialPassenger.PickUpLocation.Returns(pickUpLocation);
+            firstPassenger.DropOffLocation.Returns(dropOffLocation);
+            secondPotentialPassenger.ToPassenger().Returns(secondPassenger);
+            secondPotentialPassenger.PickUpLocation.Returns(pickUpLocation);
+            secondPassenger.DropOffLocation.Returns(dropOffLocation);
+
+            _sut.TakeNewPassengers(new List<IPotentialPassenger> { firstPotentialPassenger, secondPotentialPassenger });
+
+            _sut.NewKilometerStarted();
+            _sut.NewKilometerStarted();
+            _sut.NewKilometerStarted();
+
+            _sut.DestinationReached(dropOffLocation);
+            firstPassenger.Received(3).AddCost(1);
+            secondPassenger.Received(3).AddCost(1);
+            firstPassenger.Received(1).Pay();
+            secondPassenger.Received(1).Pay();
         }
 
         private static IPotentialPassenger CreatePotentialPassengerFake(ILocation location)

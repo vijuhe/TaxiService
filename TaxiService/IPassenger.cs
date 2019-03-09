@@ -6,5 +6,7 @@ namespace TaxiService
     {
         bool AcceptNewPassengers(IReadOnlyCollection<IPotentialPassenger> potentialPassengers);
         ILocation DropOffLocation { get; }
+        void Pay();
+        void AddCost(decimal amount);
     }
 }
