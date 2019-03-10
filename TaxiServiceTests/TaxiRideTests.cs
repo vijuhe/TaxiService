@@ -1,39 +1,38 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NSubstitute;
 using NUnit.Framework;
 using TaxiService;
 
 namespace TaxiServiceTests
 {
-    public class TaxiTests
+    public class TaxiRideTests
     {
-        private ICarRouteService _routeService;
-        private Taxi _sut;
+        private TaxiRide _sut;
 
         [SetUp]
         public void Setup()
         {
-            _routeService = Substitute.For<ICarRouteService>();
-            _sut = new Taxi(4, 2, _routeService);
+            _sut = new TaxiRide(4, 2);
         }
 
         [Test]
         public void ThereMustBeAtLeastOnePassengerSeat()
         {
-            Assert.Throws<ArgumentException>(() => new Taxi(0, 2, _routeService));
+            Assert.Throws<ArgumentException>(() => new TaxiRide(0, 2));
         }
 
         [Test]
         public void KilometerPriceCannotBeZero()
         {
-            Assert.Throws<ArgumentException>(() => new Taxi(1, 0, _routeService));
+            Assert.Throws<ArgumentException>(() => new TaxiRide(1, 0));
         }
 
         [Test]
         public void KilometerPriceCannotBeNegative()
         {
-            Assert.Throws<ArgumentException>(() => new Taxi(1, -2.50m, _routeService));
+            Assert.Throws<ArgumentException>(() => new TaxiRide(1, -2.50m));
         }
 
         [Test]
@@ -83,6 +82,36 @@ namespace TaxiServiceTests
                 CreatePotentialPassengerFake(secondPickUpAddress)
             };
             Assert.That(_sut.TakeNewPassengers(secondPassengers), Is.False);
+        }
+
+        [Test]
+        public void NewPassengersAreTakenOnlyIfThereIsRoomForAllWhenTheCarIsAtThePickUpLocation()
+        {
+            var firstPickUpAddress = Substitute.For<ILocation>();
+            var firstDropOffAddress = Substitute.For<ILocation>();
+            var firstPotentialPassenger = CreatePotentialPassengerFake(firstPickUpAddress);
+            var secondPotentialPassenger = CreatePotentialPassengerFake(firstPickUpAddress);
+            var firstPassenger = Substitute.For<IPassenger>();
+            var secondPassenger = Substitute.For<IPassenger>();
+            firstPotentialPassenger.ToPassenger().Returns(firstPassenger);
+            secondPotentialPassenger.ToPassenger().Returns(secondPassenger);
+            firstPassenger.DropOffLocation.Returns(firstDropOffAddress);
+            secondPassenger.DropOffLocation.Returns(firstDropOffAddress);
+            var firstPassengers = new List<IPotentialPassenger>
+            {
+                firstPotentialPassenger, secondPotentialPassenger
+            };
+            Assert.That(_sut.TakeNewPassengers(firstPassengers), Is.True);
+
+            var secondPickUpAddress = Substitute.For<ILocation>();
+            var secondPassengers = new List<IPotentialPassenger>
+            {
+                CreatePotentialPassengerFake(secondPickUpAddress),
+                CreatePotentialPassengerFake(secondPickUpAddress),
+                CreatePotentialPassengerFake(secondPickUpAddress)
+            };
+            firstDropOffAddress.IsCloserThan(secondPickUpAddress).Returns(true);
+            Assert.That(_sut.TakeNewPassengers(secondPassengers), Is.True);
         }
 
         [Test]
@@ -197,6 +226,90 @@ namespace TaxiServiceTests
             secondPassenger.Received(3).AddCost(1);
             firstPassenger.Received(1).Pay();
             secondPassenger.Received(1).Pay();
+        }
+
+        [Test]
+        public void PassengersStartingFromTheSameLocationShareCostsOnlyOfTheirKilometers()
+        {
+            var firstPotentialPassenger = Substitute.For<IPotentialPassenger>();
+            var firstPassenger = Substitute.For<IPassenger>();
+            var secondPotentialPassenger = Substitute.For<IPotentialPassenger>();
+            var secondPassenger = Substitute.For<IPassenger>();
+            var thirdPotentialPassenger = Substitute.For<IPotentialPassenger>();
+            var thirdPassenger = Substitute.For<IPassenger>();
+            var firstPickUpLocation = Substitute.For<ILocation>();
+            var firstDropOffLocation = Substitute.For<ILocation>();
+            var secondDropOffLocation = Substitute.For<ILocation>();
+            firstPotentialPassenger.ToPassenger().Returns(firstPassenger);
+            firstPotentialPassenger.PickUpLocation.Returns(firstPickUpLocation);
+            firstPassenger.DropOffLocation.Returns(firstDropOffLocation);
+            secondPotentialPassenger.ToPassenger().Returns(secondPassenger);
+            secondPotentialPassenger.PickUpLocation.Returns(firstPickUpLocation);
+            secondPassenger.DropOffLocation.Returns(firstDropOffLocation);
+            thirdPotentialPassenger.ToPassenger().Returns(thirdPassenger);
+            thirdPotentialPassenger.PickUpLocation.Returns(firstPickUpLocation);
+            thirdPassenger.DropOffLocation.Returns(secondDropOffLocation);
+
+            _sut.TakeNewPassengers(new List<IPotentialPassenger> { firstPotentialPassenger, secondPotentialPassenger, thirdPotentialPassenger });
+
+            _sut.NewKilometerStarted();
+            _sut.NewKilometerStarted();
+            _sut.NewKilometerStarted();
+            _sut.DestinationReached(firstDropOffLocation);
+            _sut.NewKilometerStarted();
+            _sut.DestinationReached(secondDropOffLocation);
+
+            firstPassenger.Received(3).AddCost(0.67m);
+            secondPassenger.Received(3).AddCost(0.67m);
+            thirdPassenger.Received(3).AddCost(0.67m);
+            thirdPassenger.Received(1).AddCost(2);
+            firstPassenger.Received(1).Pay();
+            secondPassenger.Received(1).Pay();
+            thirdPassenger.Received(1).Pay();
+        }
+
+        [Test]
+        public void PassengersStartingFromDifferentLocationShareCostsOnlyOfTheirKilometers()
+        {
+            var firstPotentialPassenger = Substitute.For<IPotentialPassenger>();
+            var firstPassenger = Substitute.For<IPassenger>();
+            var secondPotentialPassenger = Substitute.For<IPotentialPassenger>();
+            var secondPassenger = Substitute.For<IPassenger>();
+            var thirdPotentialPassenger = Substitute.For<IPotentialPassenger>();
+            var thirdPassenger = Substitute.For<IPassenger>();
+            var firstPickUpLocation = Substitute.For<ILocation>();
+            var secondPickUpLocation = Substitute.For<ILocation>();
+            var firstDropOffLocation = Substitute.For<ILocation>();
+            var secondDropOffLocation = Substitute.For<ILocation>();
+            firstPotentialPassenger.ToPassenger().Returns(firstPassenger);
+            firstPotentialPassenger.PickUpLocation.Returns(firstPickUpLocation);
+            firstPassenger.DropOffLocation.Returns(firstDropOffLocation);
+            secondPotentialPassenger.ToPassenger().Returns(secondPassenger);
+            secondPotentialPassenger.PickUpLocation.Returns(firstPickUpLocation);
+            secondPassenger.DropOffLocation.Returns(firstDropOffLocation);
+            thirdPotentialPassenger.ToPassenger().Returns(thirdPassenger);
+            thirdPotentialPassenger.PickUpLocation.Returns(secondPickUpLocation);
+            thirdPassenger.DropOffLocation.Returns(secondDropOffLocation);
+            firstPassenger.AcceptNewPassengers(Arg.Any<IReadOnlyCollection<IPotentialPassenger>>()).Returns(true);
+            secondPassenger.AcceptNewPassengers(Arg.Any<IReadOnlyCollection<IPotentialPassenger>>()).Returns(true);
+
+            _sut.TakeNewPassengers(new List<IPotentialPassenger> { firstPotentialPassenger, secondPotentialPassenger });
+            _sut.NewKilometerStarted();
+            _sut.TakeNewPassengers(new List<IPotentialPassenger> { thirdPotentialPassenger });
+            _sut.NewKilometerStarted();
+            _sut.DestinationReached(firstDropOffLocation);
+            _sut.NewKilometerStarted();
+            _sut.DestinationReached(secondDropOffLocation);
+
+            firstPassenger.Received(1).AddCost(1);
+            secondPassenger.Received(1).AddCost(1);
+            firstPassenger.Received(1).AddCost(0.67m);
+            secondPassenger.Received(1).AddCost(0.67m);
+            thirdPassenger.Received(1).AddCost(0.67m);
+            thirdPassenger.Received(1).AddCost(2);
+            firstPassenger.Received(1).Pay();
+            secondPassenger.Received(1).Pay();
+            thirdPassenger.Received(1).Pay();
         }
 
         private static IPotentialPassenger CreatePotentialPassengerFake(ILocation location)

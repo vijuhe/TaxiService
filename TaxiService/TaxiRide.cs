@@ -4,13 +4,12 @@ using System.Linq;
 
 namespace TaxiService
 {
-    public class Taxi
+    public class TaxiRide
     {
         private readonly decimal _kilometerPrice;
-        private readonly ICarRouteService _routeService;
         private readonly Passengers _passengers;
 
-        public Taxi(byte maxAmountOfPassengers, decimal kilometerPrice, ICarRouteService routeService)
+        public TaxiRide(byte maxAmountOfPassengers, decimal kilometerPrice)
         {
             if (maxAmountOfPassengers < 1)
             {
@@ -21,14 +20,13 @@ namespace TaxiService
                 throw new ArgumentException("Price per kilometer must be a positive number.");
             }
 
-            _routeService = routeService ?? throw new ArgumentNullException(nameof(routeService));
             _passengers = new Passengers(maxAmountOfPassengers);
             _kilometerPrice = kilometerPrice;
         }
 
         public void DestinationReached(ILocation address)
         {
-            foreach (IPassenger passenger in _passengers.WhoDropOffAt(address))
+            foreach (IPassenger passenger in _passengers.DropPassengersOffAt(address))
             {
                 passenger.Pay();
             }
@@ -45,7 +43,8 @@ namespace TaxiService
                 throw new ArgumentException("All new passengers must have the same pick up address.");
             }
 
-            if (_passengers.NewPassengersFitIn(potentialPassengers.Count) && AllPassengersAgreeOnTakingNewPassengers(potentialPassengers))
+            if (_passengers.DoNewPassengersFitIn(potentialPassengers.First().PickUpLocation, potentialPassengers.Count) 
+                && AllPassengersAgreeOnTakingNewPassengers(potentialPassengers))
             {
                 _passengers.Add(potentialPassengers);
                 return true;
@@ -61,7 +60,7 @@ namespace TaxiService
                 throw new InvalidOperationException("There must be passengers when kilometers and costs are collected.");
             }
 
-            decimal costPerPassenger = _kilometerPrice / _passengers.Count();
+            decimal costPerPassenger = Math.Round(_kilometerPrice / _passengers.Count(), 2);
             foreach (IPassenger passenger in _passengers)
             {
                 passenger.AddCost(costPerPassenger);

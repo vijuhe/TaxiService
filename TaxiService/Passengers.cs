@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace TaxiService
 {
@@ -22,9 +21,21 @@ namespace TaxiService
             return _passengers.Count(p => p != null);
         }
 
-        public IEnumerable<IPassenger> WhoDropOffAt(ILocation address)
+        public IEnumerable<IPassenger> DropPassengersOffAt(ILocation address)
         {
-            return _passengers.Where(p => p != null && p.DropOffLocation.Equals(address));
+            var leavingPassengers = _passengers.Where(p => p != null && p.DropOffLocation.Equals(address)).ToList();
+            for(int i = 0; i < _passengers.Length; i++)
+            {
+                foreach (IPassenger leavingPassenger in leavingPassengers)
+                {
+                    if (leavingPassenger == _passengers[i])
+                    {
+                        _passengers[i] = null;
+                    }
+                }
+            }
+            MovePassengersFirst();
+            return leavingPassengers;
         }
 
         public bool Any()
@@ -40,9 +51,10 @@ namespace TaxiService
             }
         }
 
-        public bool NewPassengersFitIn(int newPassengerCount)
+        public bool DoNewPassengersFitIn(ILocation pickUpLocation, int newPassengerCount)
         {
-            return newPassengerCount + _nextFreePassengerSeat <= _passengers.Length;
+            int numberOfPassengersLeavingBeforePickUp = _passengers.Count(p => p != null && p.DropOffLocation.IsCloserThan(pickUpLocation));
+            return newPassengerCount + _nextFreePassengerSeat - numberOfPassengersLeavingBeforePickUp <= _passengers.Length;
         }
 
         public IEnumerator<IPassenger> GetEnumerator()
@@ -53,6 +65,18 @@ namespace TaxiService
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
+        }
+
+        private void MovePassengersFirst()
+        {
+            for (int i = 0; i < _passengers.Length; i++)
+            {
+                if (_passengers[i] == null && i + 1 < _passengers.Length)
+                {
+                    _passengers[i] = _passengers[i + 1];
+                    _passengers[i + 1] = null;
+                }
+            }
         }
     }
 }
