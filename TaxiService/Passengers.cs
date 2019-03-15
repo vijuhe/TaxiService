@@ -7,76 +7,44 @@ namespace TaxiService
 {
     class Passengers : IEnumerable<IPassenger>
     {
-        private readonly IPassenger[] _passengers;
-        private byte _nextFreePassengerSeat;
+        private readonly byte _maxAmount;
+        private readonly List<IPassenger> _passengers;
 
         public Passengers(byte maxAmount)
         {
-            _passengers = new IPassenger[maxAmount];
-            _nextFreePassengerSeat = 0;
-        }
-
-        public int Count()
-        {
-            return _passengers.Count(p => p != null);
+            _maxAmount = maxAmount;
+            _passengers = new List<IPassenger>();
         }
 
         public IEnumerable<IPassenger> DropPassengersOffAt(ILocation address)
         {
-            var leavingPassengers = _passengers.Where(p => p != null && p.DropOffLocation.Equals(address)).ToList();
-            for(int i = 0; i < _passengers.Length; i++)
+            var leavingPassengers = _passengers.Where(p => p.DropOffLocation.Equals(address)).ToList();
+            foreach (IPassenger passenger in leavingPassengers)
             {
-                foreach (IPassenger leavingPassenger in leavingPassengers)
-                {
-                    if (leavingPassenger == _passengers[i])
-                    {
-                        _passengers[i] = null;
-                    }
-                }
+                _passengers.Remove(passenger);
             }
-            MovePassengersFirst();
             return leavingPassengers;
-        }
-
-        public bool Any()
-        {
-            return _passengers.Any(p => p != null);
         }
 
         public void Add(IEnumerable<IPotentialPassenger> potentialPassengers)
         {
-            foreach (IPotentialPassenger potentialPassenger in potentialPassengers)
-            {
-                _passengers[_nextFreePassengerSeat++] = potentialPassenger.ToPassenger();
-            }
+            _passengers.AddRange(potentialPassengers.Select(p => p.ToPassenger()));
         }
 
         public bool DoNewPassengersFitIn(ILocation pickUpLocation, int newPassengerCount)
         {
-            int numberOfPassengersLeavingBeforePickUp = _passengers.Count(p => p != null && p.DropOffLocation.IsCloserThan(pickUpLocation));
-            return newPassengerCount + _nextFreePassengerSeat - numberOfPassengersLeavingBeforePickUp <= _passengers.Length;
+            int numberOfPassengersLeavingBeforePickUp = _passengers.Count(p => p.DropOffLocation.IsCloserThan(pickUpLocation));
+            return _passengers.Count + newPassengerCount - numberOfPassengersLeavingBeforePickUp <= _maxAmount;
         }
 
         public IEnumerator<IPassenger> GetEnumerator()
         {
-            return _passengers.Where(p => p != null).GetEnumerator();
+            return _passengers.GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
-        }
-
-        private void MovePassengersFirst()
-        {
-            for (int i = 0; i < _passengers.Length; i++)
-            {
-                if (_passengers[i] == null && i + 1 < _passengers.Length)
-                {
-                    _passengers[i] = _passengers[i + 1];
-                    _passengers[i + 1] = null;
-                }
-            }
         }
     }
 }
